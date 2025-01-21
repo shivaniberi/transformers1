@@ -524,18 +524,26 @@ class AutomaticSpeechRecognitionPipeline(ChunkPipeline):
                 **generate_kwargs,
             )
             # whisper longform generation stores timestamps in "segments"
-            if return_timestamps == "word" and self.type == "seq2seq_whisper":
-                if "segments" not in tokens:
-                    out = {"tokens": tokens["sequences"], "token_timestamps": tokens["token_timestamps"]}
-                else:
-                    token_timestamps = [
-                        torch.cat([segment["token_timestamps"] for segment in segment_list])
-                        for segment_list in tokens["segments"]
-                    ]
-                    out = {"tokens": tokens["sequences"], "token_timestamps": token_timestamps}
-            else:
-                out = {"tokens": tokens}
+            # whisper longform generation stores timestamps in "segments"
             if self.type == "seq2seq_whisper":
+                if return_timestamps in ["word", True]:  # Handle both "word" and True cases
+                    if "segments" not in tokens:
+                        # When segments are not present, fallback to sequences and token_timestamps
+                        out = {"tokens": tokens["sequences"], "token_timestamps": tokens["token_timestamps"]}
+                    else:
+                        # Process segments when return_timestamps is True
+                        if return_timestamps == "word":
+                            token_timestamps = [
+                                torch.cat([segment["token_timestamps"] for segment in segment_list])
+                                for segment_list in tokens["segments"]
+                            ]
+                            out = {"tokens": tokens["sequences"], "token_timestamps": token_timestamps}
+                        elif return_timestamps is True:
+                            # Create a simplified format for True, including full segments
+                            out = {"tokens": tokens["sequences"], "segments": tokens["segments"]}
+                else:
+                    # Default to only tokens when timestamps are not requested
+                    out = {"tokens": tokens}
                 if stride is not None:
                     out["stride"] = stride
 
